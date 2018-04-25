@@ -6,8 +6,7 @@
 import asyncio, zen_utils, json
 from struct import *
 
-class ZenServer(asyncio.Protocol):
-
+class ChatClient(asyncio.Protocol):
     def connection_made(self, transport):
         self.transport = transport
         self.address = transport.get_extra_info('peername')
@@ -59,9 +58,9 @@ class ZenServer(asyncio.Protocol):
         print('')
         print("MESSAGES:")
         for message in self.json_data["MESSAGES"][-10:]:
-            print ("From: ", message[0])
-            print ("To: ", message[1])
+            print ("From: ", message[0], "     ", "To: ", message[1])
             print ("Message: ", message[3])
+            print()
 
     def get_inital_data(self):
         pass
@@ -75,11 +74,17 @@ class ZenServer(asyncio.Protocol):
         else:
             print('Client {} closed socket'.format(self.address))
 
+def handle_user_input():
+    term = input("What is your message")
+
+    print ("Message: ", term)
+
+    yield term
+
 if __name__ == '__main__':
-    print("DATA: ", unpack('!I', b'\x00\x00\x00<')[0])
     address = zen_utils.parse_command_line('asyncio server using callbacks')
     loop = asyncio.get_event_loop()
-    coro = loop.create_connection(ZenServer, *address)
+    coro = loop.create_connection(ChatClient, *address)
     server = loop.run_until_complete(coro)
     print('Listening at {}'.format(address))
     try:
