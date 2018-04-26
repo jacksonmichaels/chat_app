@@ -31,14 +31,41 @@ class ChatClient(asyncio.Protocol):
         if (self.json_loaded == False):
             self.compile_server_data(data)
         elif(self.json_loaded):
-            if (len(self.data) > 4 and self.next_length == -1):
+            if (len(self.data) >= 4 and self.next_length == -1):
                 self.next_length = self.data[:4]
                 self.next_length = unpack(b'!I', self.next_length)[0]
-            elif (len(self.data) >= self.next_length):
                 self.data = self.data[4:]
-                print("MESSAGE: ", self.data)
+
+            elif (len(self.data) >= self.next_length and self.next_length != -1):
+                message = self.data[:self.next_length]
+                self.data = self.data[self.next_length:]
+                self.output_incoming_message(message)
                 self.next_length = -1
-                self.data = b''
+            else:
+                print ("DATA: ", self.data)
+
+
+
+    def output_incoming_message(self, message):
+        if (message != b''):
+            in_list = json.loads(message)
+            if ('MESSAGES' in in_list):
+                for message in in_list['MESSAGES']:
+                    self.print_message(message)
+
+            if ('ERROR' in in_list):
+                print ("ERROR: ", in_list['ERROR'])
+
+            if ('USERS_JOINED' in in_list):
+                for user in in_list['USERS_JOINED']:
+                    print (user)
+                print ("joined the server.")
+
+            if ('USERS_LEFT' in in_list):
+                for user in in_list['USERS_LEFT']:
+                    print (user)
+                print ("left the server.")
+
 
     def compile_server_data(self, data):
         if (self.data.find(b'}') != -1):
@@ -82,6 +109,10 @@ class ChatClient(asyncio.Protocol):
         json_message = json.dumps(raw_list)
         return json_message
 
+    def print_message(self, message):
+        print ("From: ", message[0], "     ", "To: ", message[1])
+        print ("Message: ", message[3])
+        print()
 
     def print_server_status(self):
         print ("USERS:")
@@ -90,9 +121,8 @@ class ChatClient(asyncio.Protocol):
         print()
         print("MESSAGES:")
         for message in self.json_data["MESSAGES"][-10:]:
-            print ("From: ", message[0], "     ", "To: ", message[1])
-            print ("Message: ", message[3])
-            print()
+            self.print_message(message)
+
 
     def get_inital_data(self):
         pass
