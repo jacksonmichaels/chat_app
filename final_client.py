@@ -42,6 +42,7 @@ class ChatClient(asyncio.Protocol):
 
     def compile_server_data(self, data):
         if (self.data.find(b'}') != -1):
+            print(self.data)
             start_index = self.data.find(b'{')
             end_index = self.data.find(b'}')
 
