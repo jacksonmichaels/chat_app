@@ -28,7 +28,7 @@ https://github.com/brandon-rhodes/fopnp/blob/m/py3/chapter07/srv_asyncio1.py
 """
 
 
-import asyncio, random, argparse, time, json
+import asyncio, random, argparse, time, json, ssl
 from struct import *
 
 def parse_command_line(description):
@@ -75,10 +75,11 @@ class Server(asyncio.Protocol):
             print(user, " joined")
         out_string = self.dict_to_proto(json_dict)
         transport.write(out_string)
-        new_user_message = {}
-        new_user_message['USERS_JOINED'] = [user]
-        new_user_message = self.dict_to_proto(new_user_message)
-        self.send_data("ALL", new_user_message)
+        if (allowed):
+            new_user_message = {}
+            new_user_message['USERS_JOINED'] = [user]
+            new_user_message = self.dict_to_proto(new_user_message)
+            self.send_data("ALL", new_user_message)
 
 
     def dict_to_proto(self, dict_in):
@@ -141,6 +142,10 @@ class Server(asyncio.Protocol):
 
 
     def handle_message(self, message, transport):
+        """
+            helper function, gets passed incoming packet to decide what
+            to do with
+        """
         try:
             in_list = json.loads(message)
         except:
@@ -159,8 +164,9 @@ class Server(asyncio.Protocol):
                 self.send_data(target, final_message)
 
     def data_received(self, data):
-        """ recievese data from stream, parses the data
-            and and sends a response to each message
+        """
+        recievese data from stream, parses it then sends to
+        handle_message
         """
         self.data += data
         if (len(self.data) >= 4 and self.next_length == -1):
@@ -174,26 +180,40 @@ class Server(asyncio.Protocol):
             self.handle_message(message, self.transport)
             self.next_length = -1
 
+    def remove_user(self):
+        """
+        helper function to remove a user from the server
+        """
+        new_user_message = {}
+        new_user_message['USERS_LEFT'] = [self.user]
+        new_user_message = self.dict_to_proto(new_user_message)
+        self.send_data("ALL", new_user_message)
+        print(self.user, " left")
+        del self.users[self.user]
 
     def connection_lost(self, exc):
+        """
+            gets called when a client disconects
+        """
         if exc:
             print('Client {} error: {}'.format(self.address[1], exc))
+            self.remove_user()
         elif self.data:
             print('Client {} sent {} but then closed'
                   .format(self.address, self.data))
         else:
             print('Client {} closed socket'.format(self.address[1]))
-            new_user_message = {}
-            new_user_message['USERS_LEFT'] = [self.user]
-            new_user_message = self.dict_to_proto(new_user_message)
-            self.send_data("ALL", new_user_message)
-            print(self.user, " left")
+            self.remove_user()
 
 if __name__ == '__main__':
+    purpose = ssl.Purpose.CLIENT_AUTH
+    context = ssl.create_default_context(purpose, cafile="ca.crt")
+    context.load_cert_chain("localhost.pem")
+
     address = parse_command_line('asyncio server using callbacks')
     loop = asyncio.get_event_loop()
     server_obj = Server()
-    coro = loop.create_server(lambda: server_obj, *address)
+    coro = loop.create_server(lambda: server_obj, *address, ssl = context)
     server = loop.run_until_complete(coro)
     print('Listening at {}'.format(address))
     try:

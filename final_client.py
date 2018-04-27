@@ -32,7 +32,7 @@ https://github.com/brandon-rhodes/fopnp/blob/m/py3/chapter07/srv_asyncio1.py
 # https://github.com/brandon-rhodes/fopnp/blob/m/py3/chapter07/srv_asyncio1.py
 # Asynchronous I/O inside "asyncio" callback methods.
 
-import asyncio, zen_utils, json, time, calendar
+import asyncio, zen_utils, json, time, calendar, ssl
 from struct import *
 
 class ChatClient(asyncio.Protocol):
@@ -44,6 +44,7 @@ class ChatClient(asyncio.Protocol):
         """
             initializes client
         """
+
         self.loop = loop
 
     def connection_made(self, transport):
@@ -54,7 +55,10 @@ class ChatClient(asyncio.Protocol):
         self.address = transport.get_extra_info('peername')
         self.data = b''
         print('Accepted connection from {}'.format(self.address))
+        self.establish_username()
 
+
+    def establish_username(self):
         self.username = input("Please enter username: ")
         self.username = self.username.encode('ascii')
         json_name = b'{"USERNAME": "'+self.username+b'"}'
@@ -71,7 +75,10 @@ class ChatClient(asyncio.Protocol):
         """
         self.data += data
         if (self.json_loaded == False):
-            self.compile_server_data(data)
+            accepted = self.compile_server_data(data)
+            if (not accepted):
+                print("USERNAME REJECTED")
+                self.establish_username()
         elif(self.json_loaded):
             if (len(self.data) >= 4 and self.next_length == -1):
                 self.next_length = self.data[:4]
@@ -110,7 +117,7 @@ class ChatClient(asyncio.Protocol):
 
     def compile_server_data(self, data):
         """
-            takes initial server data and parses it out
+            takes initial server data and parses it out output_incoming_message
         """
         if (self.data.find(b'}') != -1):
             start_index = self.data.find(b'{')
@@ -121,11 +128,20 @@ class ChatClient(asyncio.Protocol):
 
             self.json_data = self.json_data.decode('ascii')
             self.json_data = json.loads(self.json_data)
-            self.json_loaded = True
 
-            self.print_server_status()
+            accepted = self.json_data['USERNAME_ACCEPTED']
+
+            if (accepted):
+                self.json_loaded = True
+
+                self.print_server_status()
+
+            return accepted
 
     def send_message(self, message):
+        """"
+            helper, is given a string and packs it up to be sent over connection
+        """
         if (message != ""):
             message = self.parse_message(message)
             message = '{"MESSAGES": ['+message+']}'
@@ -137,6 +153,9 @@ class ChatClient(asyncio.Protocol):
             self.transport.write(message)
 
     def parse_message(self, raw_message):
+        """
+            takes the raw user input and converts it to a useable message
+        """
         raw_list = []
         raw_list.append(self.username.decode('ascii'))
         raw_list.append('ALL')
@@ -154,11 +173,17 @@ class ChatClient(asyncio.Protocol):
         return json_message
 
     def print_message(self, message):
+        """
+            takes a message in list form and formats it
+        """
         print ("From: ", message[0], "     ", "To: ", message[1])
         print ("Message: ", message[3])
         print()
 
     def print_server_status(self):
+        """
+            gets initial server data and desplays it nicely
+        """
         print ("USERS:")
         for user in self.json_data["USER_LIST"]:
             print(user)
@@ -166,10 +191,6 @@ class ChatClient(asyncio.Protocol):
         print("MESSAGES:")
         for message in self.json_data["MESSAGES"][-10:]:
             self.print_message(message)
-
-
-    def get_inital_data(self):
-        pass
 
     def connection_lost(self, exc):
         if exc:
@@ -196,10 +217,13 @@ class ChatClient(asyncio.Protocol):
             self.send_message(message)
 
 if __name__ == '__main__':
+    purpose = ssl.Purpose.SERVER_AUTH
+    context = ssl.create_default_context(purpose, cafile="ca.crt")
+
     address = zen_utils.parse_command_line('asyncio server using callbacks')
     loop = asyncio.get_event_loop()
     client = ChatClient(loop)
-    coro = loop.create_connection(lambda: client, *address)
+    coro = loop.create_connection(lambda: client, *address, ssl = context)
     server = loop.run_until_complete(coro)
 
 
