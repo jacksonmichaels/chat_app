@@ -1,16 +1,55 @@
+"""
+Author: Jackson Michaels
+Class:  CSI-235-02
+Assignment:  Final Project
+Date Assigned: 4/6/2018
+Due Date:  4/26/2018   
+
+Description: 
+    simple chat client
+
+Certification of Authenticity:  
+I certify that this is entirely my own work, except where I have given                            
+fully­documented references to the work of others. I understand the definition and
+consequences of plagiarism and acknowledge that the assessor of this assignment
+may, for the purpose of assessing this assignment:  ­ 
+Reproduce this assignment and provide a copy to another member of academic  ­ 
+staff; and/or Communicate a copy of this assignment to a plagiarism checking  ­ 
+service (which may then retain a copy of this assignment on its database for the  ­ 
+purpose of future plagiarism checking) 
+
+final_client.py
+
+    run this command "python final_client "[host name]" -p [port]
+
+Champlain College CSI-235, Spring 2018
+This code builds off skeleton code gotten from
+https://github.com/brandon-rhodes/fopnp/blob/m/py3/chapter07/srv_asyncio1.py
+"""
+
 #!/usr/bin/env python3
 # Foundations of Python Network Programming, Third Edition
 # https://github.com/brandon-rhodes/fopnp/blob/m/py3/chapter07/srv_asyncio1.py
 # Asynchronous I/O inside "asyncio" callback methods.
 
-import asyncio, zen_utils, json, time
+import asyncio, zen_utils, json, time, calendar
 from struct import *
 
 class ChatClient(asyncio.Protocol):
+    """
+        Class for the chat client, establishes connection and Asynchronously
+        handles input from user and from server
+    """
     def __init__(self, loop):
+        """
+            initializes client
+        """
         self.loop = loop
 
     def connection_made(self, transport):
+        """
+            handles initial connection to the server
+        """
         self.transport = transport
         self.address = transport.get_extra_info('peername')
         self.data = b''
@@ -27,6 +66,9 @@ class ChatClient(asyncio.Protocol):
         self.transport.write(message)
 
     def data_received(self, data):
+        """
+            called when data is recieved over network, handles all incoming data
+        """
         self.data += data
         if (self.json_loaded == False):
             self.compile_server_data(data)
@@ -36,17 +78,16 @@ class ChatClient(asyncio.Protocol):
                 self.next_length = unpack(b'!I', self.next_length)[0]
                 self.data = self.data[4:]
 
-            elif (len(self.data) >= self.next_length and self.next_length != -1):
+            if (len(self.data) >= self.next_length and self.next_length != -1):
                 message = self.data[:self.next_length]
                 self.data = self.data[self.next_length:]
                 self.output_incoming_message(message)
                 self.next_length = -1
-            else:
-                print ("DATA: ", self.data)
-
-
 
     def output_incoming_message(self, message):
+        """
+            takes a messaages and decides what to do with it
+        """
         if (message != b''):
             in_list = json.loads(message)
             if ('MESSAGES' in in_list):
@@ -68,8 +109,10 @@ class ChatClient(asyncio.Protocol):
 
 
     def compile_server_data(self, data):
+        """
+            takes initial server data and parses it out
+        """
         if (self.data.find(b'}') != -1):
-            print(self.data)
             start_index = self.data.find(b'{')
             end_index = self.data.find(b'}')
 
@@ -97,7 +140,7 @@ class ChatClient(asyncio.Protocol):
         raw_list = []
         raw_list.append(self.username.decode('ascii'))
         raw_list.append('ALL')
-        raw_list.append(500000)
+        raw_list.append(calendar.timegm(time.gmtime()))
         raw_list.append(raw_message)
 
         if (raw_message.find('@') == 0):
@@ -137,6 +180,7 @@ class ChatClient(asyncio.Protocol):
         else:
             print('Client {} closed socket'.format(self.address))
 
+
     async def handle_user_input(self, loop):
         """reads from stdin in separate thread
 
@@ -147,7 +191,7 @@ class ChatClient(asyncio.Protocol):
             print("Please Enter Message, to send pm format like @[target] [message]")
             message = await loop.run_in_executor(None, input, "> ")
             if message == "quit":
-                loop.stop()
+                self.transport.close()
                 return
             self.send_message(message)
 
