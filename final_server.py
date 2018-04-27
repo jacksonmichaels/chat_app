@@ -187,9 +187,10 @@ class Server(asyncio.Protocol):
         new_user_message = {}
         new_user_message['USERS_LEFT'] = [self.user]
         new_user_message = self.dict_to_proto(new_user_message)
+        del self.users[self.user]
+
         self.send_data("ALL", new_user_message)
         print(self.user, " left")
-        del self.users[self.user]
 
     def connection_lost(self, exc):
         """

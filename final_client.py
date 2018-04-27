@@ -193,6 +193,9 @@ class ChatClient(asyncio.Protocol):
             self.print_message(message)
 
     def connection_lost(self, exc):
+        """
+            gets called when the server disconects
+        """
         if exc:
             print('Client {} error: {}'.format(self.address, exc))
         elif self.data:
